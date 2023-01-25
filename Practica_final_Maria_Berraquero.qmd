@@ -1,0 +1,169 @@
+---
+title: "practica_final"
+format: html
+editor: visual
+---
+
+Vamos a utilizar el dataset de semillas que se encuentra aquí: https://archive.ics.uci.edu/ml/datasets/seeds#
+
+Primero vamos a descargarnos el dataset con el siguiente comando:
+
+```{r}
+library(tidyverse)
+df_seeds <- read.table('https://archive.ics.uci.edu/ml/machine-learning-databases/00236/seeds_dataset.txt', col.names =c('area','perimetro','compacto','longitud','anchura','coeficient.asimetria','longitud.ranura','tipo'))
+```
+
+#### PREGUNTA 1
+
+¿Cuantas filas y cuantas columnas tiene el dataframe df_seeds?
+
+**Respuesta**:
+
+```{r}
+cat('El dataframe df_seeds presenta', nrow(df_seeds), 'filas y', ncol(df_seeds), 'columnas.')
+```
+
+#### PREGUNTA 2
+
+Vamos a convertir en factor la columna tipo. Vamos a reemplazar los números por su correspondiente etiqueta (label). La correspondencia entre el código y el tipo es:
+
+-   1 - Kama
+-   2 - Rosa
+-   3 - Canadian
+
+Convierte en factor la columna seeds, respetando las etiquetas:
+
+**Respuesta**:
+
+```{r}
+df_seeds$tipo <- factor(df_seeds$tipo, labels =  c('Kama', 'Rosa', 'Canadian'))
+#str(df_seeds$tipo)
+```
+
+#### PREGUNTA 3
+
+¿Cual es la media del area de cada uno de los tipos?
+
+**Respuesta**
+
+```{r}
+mean_tipo <- df_seeds |> group_by(tipo) |> dplyr::summarize(media=round(mean(area), 2))
+
+mean_tipo
+```
+
+#### PREGUNTA 4
+
+¿Como se llama el siguiente tipo de gráfico?. ¿Qué representa la línea del centro de la caja?
+
+```{r}
+ggplot(df_seeds, aes(x=tipo, y=area)) + geom_boxplot()
+```
+
+**Respuesta**:
+
+'Se trata de un diagrama de caja, de bigote o box plot. La línea central representa la mediana o segundo cuartil que divide la distribución en dos partes con igual número de datos por encima y por debajo de ella. Es decir, nos indica el valor central (o media de los valores centrales) en el conjunto ordenado de los datos del área.'
+
+#### PREGUNTA 5
+
+¿Como pintarías un diagrama de puntos (o scatterplot) con ggplot con las siguientes características? - En el eje X la variable compacto - En el eje Y la variable area - Cada tipo de semilla debería tener un color diferente
+
+**Respuesta**:
+
+```{r}
+g1 <- ggplot(df_seeds, aes(x=compacto, y=area, color=tipo)) + geom_point(alpha = 0.5) + xlab('Compacto') + ylab('Area') + ggtitle('Area vs. Compacto', subtitle = 'Diferenciando tipo de semilla') + guides(color = guide_legend(title = 'Tipo de semilla:')) + theme_light() + scale_x_continuous(breaks = seq(0, 1, .02)) + scale_y_continuous(breaks = seq(10, 25, 1.5))
+
+g1 
+```
+
+#### PREGUNTA 6
+
+¿Qué hace la siguiente línea?:
+
+```{r}
+df_seeds |> mutate(is_kama = tipo=='Kama') -> df_seeds
+```
+
+**Respuesta**:
+
+'Con ese código creo una nueva columna llamada is_kama en el dataframe df_seeds, en ella se comprueba si el valor de la columna tipo es Kama y almacena la respuesta (un booleano) en is_kama. A este nuevo dataframe se le asigna el nombre de df_seeds (mismo nombre que el dataframe inicial).
+
+#### PREGUNTA 7
+
+Vamos a dividir el conjunto de datos en test y training porque vamos a entrenar un modelo que me permita diferenciar si una semilla es de tipo Kama o no. ¿Por qué es aconsejable dividir el dataset en los grupos de train y test?
+
+```{r}
+set.seed(123) # Este set.seed hace que a todos nos generen los mismos número aleatorios
+idx <- sample(1:nrow(df_seeds), 0.7*nrow(df_seeds))
+df_seeds_train <- df_seeds[idx,]
+df_seeds_test <- df_seeds[-idx,]
+```
+
+**Respuesta**:
+
+'Se divide en dos grupos, uno con los datos de entrenamiento y el otro con datos nuevos que el modelo no ha visto. Esto se hace para no contaminar el modelo creado con el entrenamiento y obtener un resultado mejor de lo que realmente corresponde en las métricas de evaluación.'
+
+#### PREGUNTA 8
+
+Vamos a crear un modelo para realizar una clasificación binaria, donde le pasaremos como entrada las columnas: area, perimetro, compacto, longitud, coeficient.asimetria y longitud.ranura
+
+¿Qué tipo de algoritmo o modelo debería usar?
+
+**Respuesta**:
+
+'Utilizaría un modelo lineal generalizado (glm)'
+
+#### PREGUNTA 9
+
+Crea un modelo que me permita clasificar si una semilla es de tipo Kama o no con las siguientes columnas: area, perimetro, compacto, longitud, coeficient.asimetria, longitud.ranura
+
+**Respuesta**:
+
+```{r}
+df_seeds_train$is_kama <- factor(df_seeds_train$is_kama, labels =  c('No kama', 'Kama'))
+
+model <- glm(data =  df_seeds_train, formula = is_kama~area+perimetro+compacto+longitud+coeficient.asimetria+longitud.ranura, family = binomial(link='logit'))
+
+print.simple.list(model$coefficients)
+```
+
+#### PREGUNTA 10
+
+Si usamos un umbral de 0 en la salida del modelo (lo que equivale a probabilidad de 0.5 cuando usamos el predict con type='response') ¿Cuales son los valores de precisión y exhausitividad?
+
+**Respuesta**.
+
+```{r}
+df_seeds_test$is_kama <- factor(df_seeds_test$is_kama, labels =  c('No kama', 'Kama'))
+
+umbral <- 0.5
+seed_predict <- predict(model, df_seeds_test, type = 'response')
+
+condicion <- factor(ifelse(seed_predict < umbral,0,1), labels = c('No kama', 'Kama'))
+
+M_test <- table(real = df_seeds_test$is_kama,elegimos=condicion)
+
+M_test
+
+cat("\n")
+
+cat(paste("Precision:", M_test[2,2]/(M_test[1,2]+M_test[2,2])), sep="\n")
+cat(paste("Exhaustividad:", M_test[2,2]/(M_test[2,1]+M_test[2,2])), sep="\n")
+```
+
+#### PREGUNTA 11
+
+¿Qué están haciendo las siguientes líneas?
+
+```{r}
+set.seed(123)
+cl<-df_seeds |> select(area,perimetro,compacto,longitud,anchura,coeficient.asimetria,longitud.ranura) |> kmeans(3)
+table(real=df_seeds$tipo,cluster=cl$cluster)
+```
+
+**Respuesta**:
+
+'En este código indico que seleccionemos las columnas: area, perimetro, compacto, longitud, anchura, coeficient.asimetria, longitud.ranura, del dataframe 'df_seed'. \
+Los datos de esas columnas se agruparán en 3 clusters con la función kmeans(). \
+Con set.seeds() hago que los centroides iniciales siempre partan de los mismos puntos aleatorios.\
+Finalmente, represento una matriz de confusión que indica a qué grupo corresponde cada uno de los clusters por tipo de semilla.'
